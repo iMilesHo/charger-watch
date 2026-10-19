@@ -92,6 +92,7 @@ def check_once(names: list[str], token: str, chat_id: str, path: Path, *, api_ur
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--once", action="store_true", help="check once, then exit")
+    parser.add_argument("--status", action="store_true", help="print current status without sending messages")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -101,8 +102,18 @@ def main() -> int:
     interval = int(os.getenv("POLL_INTERVAL_SECONDS", "120"))
     path = Path(os.getenv("STATE_FILE", "./state.json"))
     api_url = os.getenv("CHARGELAB_API_URL", API_URL)
-    if not names or not token or not chat_id or interval < 60:
-        parser.error("Set CHARGERS, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, and POLL_INTERVAL_SECONDS >= 60")
+    if not names or interval < 60 or (not args.status and (not token or not chat_id)):
+        parser.error("Set CHARGERS, POLL_INTERVAL_SECONDS >= 60, TELEGRAM_BOT_TOKEN, and TELEGRAM_CHAT_ID")
+
+    if args.status:
+        failed = False
+        for name in names:
+            try:
+                print(f"{name}: {'available' if fetch_status(name, api_url) else 'not available'}")
+            except (error.URLError, TimeoutError, ValueError, OSError) as exc:
+                print(f"{name}: check failed: {exc}", file=sys.stderr)
+                failed = True
+        return 1 if failed else 0
 
     while True:
         check_once(names, token, chat_id, path, api_url=api_url)

@@ -14,9 +14,11 @@ Token 能控制这个 Bot，不要提交到 Git 仓库或发给别人。
 
 ## 在 Ubuntu 上运行
 
-服务器需要 Python 3 和能访问 `api-v1-green.chargelab.io`、`api.telegram.org` 的网络。下面假设仓库克隆在当前目录：
+服务器需要 Python 3 和能访问 `api-v1-green.chargelab.io`、`api.telegram.org` 的网络。
 
 ```sh
+git clone https://github.com/iMilesHo/charger-watch.git
+cd charger-watch
 sudo install -d -m 755 /opt/charger-watch
 sudo install -m 644 charger_watch.py /opt/charger-watch/charger_watch.py
 sudo install -m 644 charger-watch.service /etc/systemd/system/charger-watch.service
@@ -35,12 +37,10 @@ journalctl -u charger-watch -n 30 --no-pager
 
 第一次检查发现空闲时会提醒一次。之后只有在该桩先变为非空闲、再变为空闲时才重新提醒。请求失败不会改变上次记录的状态；发送失败会在下一轮重试。
 
-想先手动检查一轮，可以在配置完成后运行：
+想先检查接口是否可用，可以在配置 Telegram 之前运行：
 
 ```sh
-sudo systemctl stop charger-watch
-sudo sh -c 'set -a; . /etc/charger-watch.env; set +a; STATE_FILE=/var/lib/charger-watch/state.json python3 /opt/charger-watch/charger_watch.py --once'
-sudo systemctl start charger-watch
+CHARGERS=EVS-1234,EVS-5678 python3 charger_watch.py --status
 ```
 
 如果日志里一直显示连接 Telegram 失败，先从服务器检查它能否访问 `https://api.telegram.org`；中国大陆的服务器可能需要出站代理，或者把服务放到能访问 Telegram 的机器上。
