@@ -1,0 +1,21 @@
+[Unit]
+Description=ChargeLab availability alerts
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+DynamicUser=yes
+EnvironmentFile=/etc/charger-watch.env
+Environment=STATE_FILE=/var/lib/charger-watch/state.json
+StateDirectory=charger-watch
+ExecStart=/usr/bin/python3 /opt/charger-watch/charger_watch.py
+Restart=always
+RestartSec=15
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
