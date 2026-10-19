@@ -44,18 +44,18 @@ class NotificationTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "state.json"
             with patch.object(watch, "fetch_status", side_effect=[False, True, True, False, True]), \
-                 patch.object(watch, "send_telegram") as send:
+                 patch.object(watch, "send_serverchan") as send:
                 for _ in range(5):
-                    watch.check_once(["EVS-1234"], "token", "chat", state)
+                    watch.check_once(["EVS-1234"], "SCTkey", state)
             self.assertEqual(send.call_count, 2)
 
     def test_failed_send_is_retried(self):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory) / "state.json"
             with patch.object(watch, "fetch_status", return_value=True), \
-                 patch.object(watch, "send_telegram", side_effect=[RuntimeError("failed"), None]) as send:
-                watch.check_once(["EVS-1234"], "token", "chat", state)
-                watch.check_once(["EVS-1234"], "token", "chat", state)
+                 patch.object(watch, "send_serverchan", side_effect=[RuntimeError("failed"), None]) as send:
+                watch.check_once(["EVS-1234"], "SCTkey", state)
+                watch.check_once(["EVS-1234"], "SCTkey", state)
             self.assertEqual(send.call_count, 2)
             self.assertTrue(watch.read_state(state)["EVS-1234"])
 

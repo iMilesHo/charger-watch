@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Watch ChargeLab chargers and send a Telegram alert when a port opens up."""
+"""Watch ChargeLab chargers and send a WeChat alert when a port opens up."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from urllib import error, parse, request
 
 LOG = logging.getLogger("charger-watch")
 API_URL = "https://api-v1-green.chargelab.io/core/v1/chargers"
-TELEGRAM_URL = "https://api.telegram.org"
+SERVERCHAN_URL = "https://sctapi.ftqq.com"
 
 
 def fetch_status(name: str, api_url: str = API_URL) -> bool:
@@ -38,20 +38,22 @@ def fetch_status(name: str, api_url: str = API_URL) -> bool:
     return any(port.get("status") == "AVAILABLE" for port in ports)
 
 
-def send_telegram(name: str, token: str, chat_id: str) -> None:
-    if not re.fullmatch(r"\d+:[A-Za-z0-9_-]+", token):
-        raise ValueError("Invalid TELEGRAM_BOT_TOKEN")
-    message = f"充电桩 {name} 空闲了\nhttps://charge.id/{name.lower()}"
-    data = parse.urlencode({"chat_id": chat_id, "text": message}).encode()
-    req = request.Request(f"{TELEGRAM_URL}/bot{token}/sendMessage", data=data, method="POST")
+def send_serverchan(name: str, sendkey: str) -> None:
+    if not re.fullmatch(r"SCT[A-Za-z0-9]+", sendkey):
+        raise ValueError("Invalid SERVERCHAN_SENDKEY")
+    data = parse.urlencode({
+        "title": f"充电桩 {name} 空闲了",
+        "desp": f"https://charge.id/{name.lower()}",
+    }).encode()
+    req = request.Request(f"{SERVERCHAN_URL}/{sendkey}.send", data=data, method="POST")
     try:
         with request.urlopen(req, timeout=15) as response:
             result = json.load(response)
     except error.HTTPError as exc:
-        # HTTPError includes the request URL, which contains the bot token.
-        raise RuntimeError(f"Telegram returned HTTP {exc.code}") from None
-    if result.get("ok") is not True:
-        raise RuntimeError("Telegram did not accept the message")
+        # HTTPError includes the request URL, which contains the SendKey.
+        raise RuntimeError(f"ServerChan returned HTTP {exc.code}") from None
+    if result.get("code") != 0:
+        raise RuntimeError(f"ServerChan rejected the message (code {result.get('code')})")
 
 
 def read_state(path: Path) -> dict[str, bool]:
@@ -71,13 +73,13 @@ def write_state(path: Path, state: dict[str, bool]) -> None:
     temporary.replace(path)
 
 
-def check_once(names: list[str], token: str, chat_id: str, path: Path, *, api_url: str = API_URL) -> None:
+def check_once(names: list[str], sendkey: str, path: Path, *, api_url: str = API_URL) -> None:
     state = read_state(path)
     for name in names:
         try:
             available = fetch_status(name, api_url)
             if available and not state.get(name, False):
-                send_telegram(name, token, chat_id)
+                send_serverchan(name, sendkey)
                 LOG.info("%s is available; notification sent", name)
             elif available:
                 LOG.info("%s is still available", name)
@@ -97,13 +99,12 @@ def main() -> int:
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     names = [item.strip().upper() for item in os.getenv("CHARGERS", "").split(",") if item.strip()]
-    token = os.getenv("TELEGRAM_BOT_TOKEN", "")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    sendkey = os.getenv("SERVERCHAN_SENDKEY", "")
     interval = int(os.getenv("POLL_INTERVAL_SECONDS", "120"))
     path = Path(os.getenv("STATE_FILE", "./state.json"))
     api_url = os.getenv("CHARGELAB_API_URL", API_URL)
-    if not names or interval < 60 or (not args.status and (not token or not chat_id)):
-        parser.error("Set CHARGERS, POLL_INTERVAL_SECONDS >= 60, TELEGRAM_BOT_TOKEN, and TELEGRAM_CHAT_ID")
+    if not names or interval < 60 or (not args.status and not sendkey):
+        parser.error("Set CHARGERS, POLL_INTERVAL_SECONDS >= 60, and SERVERCHAN_SENDKEY")
 
     if args.status:
         failed = False
@@ -116,7 +117,7 @@ def main() -> int:
         return 1 if failed else 0
 
     while True:
-        check_once(names, token, chat_id, path, api_url=api_url)
+        check_once(names, sendkey, path, api_url=api_url)
         if args.once:
             return 0
         time.sleep(interval)
