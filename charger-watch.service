@@ -2,20 +2,41 @@
 Description=ChargeLab availability alerts
 Wants=network-online.target
 After=network-online.target
+# Stop restarting if it keeps crashing (e.g. bad config); see journalctl.
+StartLimitIntervalSec=10min
+StartLimitBurst=5
 
 [Service]
 Type=simple
 DynamicUser=yes
 EnvironmentFile=/etc/charger-watch.env
 Environment=STATE_FILE=/var/lib/charger-watch/state.json
+Environment=PYTHONUNBUFFERED=1
 StateDirectory=charger-watch
 ExecStart=/usr/bin/python3 /opt/charger-watch/charger_watch.py
-Restart=always
-RestartSec=15
+Restart=on-failure
+RestartSec=30
+
+# Hardening: the script only needs outbound HTTPS and its state directory.
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+UMask=0077
 
 [Install]
 WantedBy=multi-user.target

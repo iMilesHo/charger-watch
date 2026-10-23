@@ -1,6 +1,6 @@
 # charger-watch
 
-盯着 ChargeLab 充电桩的空闲状态。某个桩从占用或故障变成可用时，通过 Server酱发一条微信消息，附上原页面链接。默认每两分钟检查一次；持续空闲时不会重复发消息。
+盯着 ChargeLab 充电桩的空闲状态。某个桩从占用或故障变成可用时，通过 Server酱发一条微信消息，附上原页面链接；空闲的桩被占用（或进入故障、维护）时，也会再发一条。默认每两分钟检查一次；状态不变时不会重复发消息。
 
 程序只读充电桩页面所用的公开接口，不需要 ChargeLab 账号。它不会预约车位，也不会启动充电。这个接口不是公开承诺的开发者 API，将来若有变化，可能需要更新代码。
 
@@ -35,10 +35,28 @@ systemctl status charger-watch
 journalctl -u charger-watch -n 30 --no-pager
 ```
 
-第一次检查发现空闲时会提醒一次。之后只有在该桩先变为非空闲、再变为空闲时才重新提醒。请求失败不会改变上次记录的状态；发送失败会在下一轮重试。
+第一次检查发现空闲时会提醒一次；第一次检查就是占用状态则不提醒。之后每次在空闲和非空闲之间切换都会提醒一次。请求失败不会改变上次记录的状态；发送失败会在下一轮重试。某一个桩出错不会影响其他桩的检查。
+
+日志默认只记录状态变化和错误。想看每一轮的检查结果，在配置文件里加 `LOG_LEVEL=DEBUG`，然后 `sudo systemctl restart charger-watch`。
+
+更新代码后，重新安装脚本并重启服务：
+
+```sh
+git pull
+sudo install -m 644 charger_watch.py /opt/charger-watch/charger_watch.py
+sudo install -m 644 charger-watch.service /etc/systemd/system/charger-watch.service
+sudo systemctl daemon-reload
+sudo systemctl restart charger-watch
+```
 
 配置 SendKey 前，可以先检查接口是否可用：
 
 ```sh
 CHARGERS=EVS-1234,EVS-5678 python3 charger_watch.py --status
+```
+
+## 运行测试
+
+```sh
+python3 -m unittest -v
 ```
